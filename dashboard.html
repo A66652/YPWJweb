@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>翼攀微鉴 | 航空维修智能管理平台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at 20% 30%, #0a0f1e, #03060c);
+            color: #eef5ff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: rgba(15, 25, 45, 0.55);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 255, 255, 0.1) inset;
+            transition: all 0.2s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(0, 255, 255, 0.5);
+            box-shadow: 0 12px 40px rgba(0, 180, 255, 0.15);
+        }
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2.5rem;
+            background: rgba(5, 10, 22, 0.7);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo-main {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #aaffff, #2a9eff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 1px;
+        }
+        .logo-main i { color: #2a9eff; margin-right: 8px; }
+        .nav-tabs { display: flex; gap: 1rem; }
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #b0d4ff;
+            font-size: 1rem;
+            font-weight: 500;
+            padding: 0.6rem 1.4rem;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        .nav-btn i { margin-right: 8px; }
+        .nav-btn.active {
+            background: rgba(0, 160, 255, 0.25);
+            color: white;
+            box-shadow: 0 0 8px #00a0ff;
+            border: 1px solid #00ccff;
+        }
+        .main-container { padding: 1.8rem 2rem; max-width: 1600px; margin: 0 auto; }
+        .page-panel { display: none; animation: fadeIn 0.3s ease; }
+        .page-panel.active-panel { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+        .flex-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .search-section { margin-bottom: 1.8rem; }
+        input, select, button {
+            background: rgba(10, 20, 35, 0.8);
+            border: 1px solid #2c4a7a;
+            border-radius: 20px;
+            padding: 0.6rem 1rem;
+            color: #eef5ff;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        input:focus, select:focus { border-color: #2a9eff; box-shadow: 0 0 8px rgba(42, 158, 255, 0.4); }
+        .btn-primary {
+            background: linear-gradient(95deg, #0077ff, #00c3ff);
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 0 12px #00a6ff; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(100, 150, 200, 0.2); }
+        th { color: #9bc0ff; font-weight: 500; }
+        .damage-item { cursor: pointer; transition: 0.1s; }
+        .damage-item:hover { background: rgba(0, 160, 255, 0.2); }
+        .detail-3d-area { flex: 1.2; min-width: 320px; }
+        .damage-list-area { flex: 0.9; min-width: 320px; }
+        #threeCanvas { width: 100%; height: 280px; border-radius: 24px; background: #010a18; overflow: hidden; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .trend-mini-container {
+            height: 200px;
+            width: 100%;
+            margin-top: 8px;
+        }
+        .badge { background: #0a2a44; border-radius: 40px; padding: 4px 12px; font-size: 0.75rem; }
+        .analysis-card { margin-top: 1.5rem; }
+        @media (max-width: 900px) { .flex-row { flex-direction: column; } .nav-bar { flex-direction: column; gap: 12px; } }
+    </style>
+</head>
+<body>
+<div class="nav-bar">
+    <div class="logo-main"><i class="fas fa-plane"></i> 翼攀微鉴 · 智慧航空运维</div>
+    <div class="nav-tabs">
+        <button class="nav-btn active" data-page="damageQuery"><i class="fas fa-database"></i> 损伤档案查询</button>
+        <button class="nav-btn" data-page="taskManage"><i class="fas fa-tasks"></i> 检测任务管理</button>
+        <button class="nav-btn" data-page="trendAnalysis"><i class="fas fa-chart-line"></i> 趋势分析与推演</button>
+    </div>
+</div>
+<div class="main-container">
+    <!-- 损伤档案查询页面 -->
+    <div id="damageQueryPanel" class="page-panel active-panel">
+        <div class="glass-card" style="padding: 1.5rem;">
+            <h2><i class="fas fa-search"></i> 损伤档案查询</h2>
+            <div class="search-section flex-row" style="align-items: end;">
+                <div style="flex:1"><label>实验批次</label><input type="text" id="batchQuery" placeholder="例: BATCH-001" value="BATCH-001"></div>
+                <div style="flex:1"><label>损伤类型</label><select id="damageTypeFilter"><option value="">全部</option><option>裂纹</option><option>划痕</option><option>凹陷</option><option>锈蚀</option></select></div>
+                <div style="flex:1"><label>损伤区域</label><select id="positionFilter"><option value="">全部</option><option>左下区</option><option>右下区</option><option>左上区</option><option>右上区</option><option>中心区</option></select></div>
+                <div style="flex:1"><label>起始日期</label><input type="date" id="startDate"></div>
+                <div style="flex:1"><label>结束日期</label><input type="date" id="endDate"></div>
+                <div><button id="searchDamageBtn" class="btn-primary" style="padding: 0.6rem 1.8rem;"><i class="fas fa-filter"></i> 检索</button></div>
+                <div><button id="exportDamageBtn" class="btn-primary" style="background:#2c5a7a;"><i class="fas fa-download"></i> 导出CSV</button></div>
+            </div>
+        </div>
+        <div class="flex-row" style="margin-top: 1.5rem;">
+            <div class="damage-list-area glass-card" style="padding: 1.2rem;">
+                <h3><i class="fas fa-list-ul"></i> 损伤记录清单</h3>
+                <div style="max-height: 500px; overflow-y: auto;">
+                    <table style="width:100%">
+                        <thead><tr><th>损伤ID</th><th>类型</th><th>区域</th><th>尺寸(mm)</th><th>发现日期</th><th>操作</th></tr></thead>
+                        <tbody id="damageTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="detail-3d-area glass-card" style="padding: 1.2rem;">
+                <h3><i class="fas fa-cube"></i> 损伤详情视图 & 三维定位</h3>
+                <div id="threeCanvas" style="height: 280px; margin-bottom: 1rem;"></div>
+                <div id="damageDetailContent">
+                    <div class="info-grid">
+                        <div><span class="badge">图像</span><br><img id="damageImg" src="" style="border-radius:12px; width:100%; max-width:140px; background:#000;"></div>
+                        <div><span class="badge">坐标 (cm)</span><br><span id="damageCoord">-</span></div>
+                        <div><span class="badge">尺寸数据</span><br><span id="damageSize">-</span></div>
+                        <div><span class="badge">历史变化曲线</span><br><div id="trendChartMini" class="trend-mini-container"></div></div>
+                    </div>
+                    <div style="margin-top: 8px;"><i class="fas fa-map-marker-alt"></i> 三维模型红点：损伤在铁皮上的精确位置（左下角原点）</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 检测任务管理页面 -->
+    <div id="taskManagePanel" class="page-panel">
+        <div class="glass-card" style="padding: 1.5rem;">
+            <h2><i class="fas fa-clipboard-list"></i> 检测任务管理</h2>
+            <div class="flex-row" style="margin-bottom: 1.2rem;">
+                <input type="date" id="taskDateFilter" placeholder="按时间筛选">
+                <input type="text" id="taskBatchFilter" placeholder="实验批次">
+                <select id="taskAreaFilter"><option value="">全部区域</option><option>左下区</option><option>右下区</option><option>左上区</option><option>右上区</option><option>中心区</option></select>
+                <button id="filterTaskBtn" class="btn-primary">筛选</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>任务ID</th><th>实验批次</th><th>检测区域</th><th>计划日期</th><th>状态</th></tr></thead>
+                    <tbody id="taskTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- 趋势分析与故障推演页面 -->
+    <div id="trendAnalysisPanel" class="page-panel">
+        <div class="glass-card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+            <h2><i class="fas fa-chart-line"></i> 损伤发展曲线（同一批次铁皮实验）</h2>
+            <div class="flex-row" style="align-items: center;">
+                <select id="trendBatchSelect"><option value="BATCH-001">BATCH-001</option><option value="BATCH-002">BATCH-002</option><option value="BATCH-003">BATCH-003</option><option value="BATCH-004">BATCH-004</option><option value="BATCH-005">BATCH-005</option></select>
+                <select id="trendDamageSelect"><option>请先选择批次</option></select>
+                <button id="refreshTrendBtn" class="btn-primary">生成发展曲线</button>
+            </div>
+            <div id="damageCurveChart" style="height: 400px; margin-top: 20px;"></div>
+        </div>
+        <div class="glass-card" style="padding: 1.5rem;">
+            <h2><i class="fas fa-fire"></i> 高发损伤区域热力图（铁皮分区统计）</h2>
+            <div id="heatmapChart" style="height: 350px;"></div>
+        </div>
+        <div class="glass-card analysis-card" style="padding: 1.5rem;">
+            <h2><i class="fas fa-chart-simple"></i> 损伤部位发生频次 & 未来损伤概率预测</h2>
+            <div id="probabilityChart" style="height: 400px; margin-top: 20px;"></div>
+            <p class="badge" style="margin-top: 12px;"><i class="fas fa-chart-line"></i> 基于2026年3月历史数据统计，采用加权移动平均法预测下一周期（4月）各区域损伤概率</p>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // ======================== 铁皮损伤数据 ========================
+    // 前10条数据：请在这里填写您自己的图片路径
+    // 注意：图片文件请放在 images 文件夹下，路径示例：'images/my_crack.jpg'
+    // 也可以使用网络图片，例如 'https://example.com/photo.jpg'
+    const manualDamages = [
+        { id: 'D001', batch: 'BATCH-001', type: '凹陷', position: '左下区', locationCm: {x: 2.5, y: 1.8}, size: '15x0.3mm', date: '2026-03-01', img: 'images/凹痕.jpg', history: [['2026-03-01', 0.3], ['2026-03-05', 0.5], ['2026-03-10', 0.8]] },
+        { id: 'D002', batch: 'BATCH-001', type: '划痕', position: '中心区', locationCm: {x: 5.0, y: 5.2}, size: '22x0.2mm', date: '2026-03-01', img: 'images/1.jpg', history: [['2026-03-01', 0.2], ['2026-03-06', 0.25], ['2026-03-11', 0.3]] },
+        { id: 'D003', batch: 'BATCH-001', type: '凹陷', position: '右上区', locationCm: {x: 8.2, y: 7.5}, size: '直径6mm', date: '2026-03-02', img: 'images/请填写图片路径3.jpg', history: [['2026-03-02', 0.8], ['2026-03-07', 1.0], ['2026-03-12', 1.2]] },
+        { id: 'D004', batch: 'BATCH-002', type: '锈蚀', position: '右下区', locationCm: {x: 9.0, y: 1.5}, size: '10x8mm', date: '2026-03-03', img: 'images/请填写图片路径4.jpg', history: [['2026-03-03', 2.0], ['2026-03-08', 2.5], ['2026-03-13', 3.1]] },
+        { id: 'D005', batch: 'BATCH-002', type: '裂纹', position: '左上区', locationCm: {x: 1.2, y: 8.8}, size: '8x0.2mm', date: '2026-03-04', img: 'images/请填写图片路径5.jpg', history: [['2026-03-04', 0.2], ['2026-03-09', 0.35], ['2026-03-14', 0.5]] },
+        { id: 'D006', batch: 'BATCH-003', type: '划痕', position: '左下区', locationCm: {x: 3.0, y: 2.0}, size: '30x0.15mm', date: '2026-03-05', img: 'images/请填写图片路径6.jpg', history: [['2026-03-05', 0.15], ['2026-03-10', 0.22], ['2026-03-15', 0.28]] },
+        { id: 'D007', batch: 'BATCH-003', type: '凹陷', position: '中心区', locationCm: {x: 5.5, y: 4.5}, size: '直径4mm', date: '2026-03-06', img: 'images/请填写图片路径7.jpg', history: [['2026-03-06', 0.5], ['2026-03-11', 0.7], ['2026-03-16', 0.9]] },
+        { id: 'D008', batch: 'BATCH-004', type: '锈蚀', position: '右下区', locationCm: {x: 7.8, y: 2.2}, size: '12x9mm', date: '2026-03-07', img: 'images/请填写图片路径8.jpg', history: [['2026-03-07', 1.2], ['2026-03-12', 1.6], ['2026-03-17', 2.0]] },
+        { id: 'D009', batch: 'BATCH-004', type: '裂纹', position: '左下区', locationCm: {x: 1.5, y: 1.0}, size: '10x0.2mm', date: '2026-03-08', img: 'images/请填写图片路径9.jpg', history: [['2026-03-08', 0.2], ['2026-03-13', 0.4], ['2026-03-18', 0.6]] },
+        { id: 'D010', batch: 'BATCH-005', type: '划痕', position: '左上区', locationCm: {x: 2.8, y: 7.2}, size: '25x0.2mm', date: '2026-03-09', img: 'images/请填写图片路径10.jpg', history: [['2026-03-09', 0.2], ['2026-03-14', 0.3], ['2026-03-19', 0.4]] }
+    ];
+
+    // 生成剩余的190条随机数据（日期在2026年3月内）
+    const damageTypes = ['裂纹', '划痕', '凹陷', '锈蚀'];
+    const regions = ['左下区', '右下区', '左上区', '右上区', '中心区'];
+    const batches = ['BATCH-001', 'BATCH-002', 'BATCH-003', 'BATCH-004', 'BATCH-005'];
+    const startDate = new Date('2026-03-01');
+    const endDate = new Date('2026-03-31');
+
+    function randomDate(start, end) {
+        return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+    }
+    function formatDate(date) {
+        return date.toISOString().slice(0,10);
+    }
+    function generateHistory(damageType, firstDate) {
+        let baseValues = [];
+        let dates = [];
+        let currentDate = new Date(firstDate);
+        let stepDays = [3, 5, 7, 10];
+        let value = 0;
+        if (damageType === '裂纹') value = 0.2;
+        else if (damageType === '划痕') value = 0.1;
+        else if (damageType === '凹陷') value = 0.5;
+        else value = 1.0;
+        for (let i = 0; i < 4; i++) {
+            dates.push(formatDate(currentDate));
+            baseValues.push(parseFloat(value.toFixed(2)));
+            let inc = 0;
+            if (damageType === '裂纹') inc = 0.25 + Math.random() * 0.2;
+            else if (damageType === '划痕') inc = 0.05 + Math.random() * 0.08;
+            else if (damageType === '凹陷') inc = 0.15 + Math.random() * 0.15;
+            else inc = 0.4 + Math.random() * 0.3;
+            value += inc;
+            currentDate.setDate(currentDate.getDate() + stepDays[i % stepDays.length]);
+            if (currentDate > endDate) currentDate = new Date(endDate);
+        }
+        return dates.map((d, idx) => [d, baseValues[idx]]);
+    }
+
+    const randomDamages = [];
+    let idCounter = 11; // 从 D011 开始
+    for (let i = 0; i < 190; i++) {
+        const batch = batches[Math.floor(Math.random() * batches.length)];
+        const type = damageTypes[Math.floor(Math.random() * damageTypes.length)];
+        const region = regions[Math.floor(Math.random() * regions.length)];
+        let x, y;
+        switch(region) {
+            case '左下区': x = Math.random() * 4; y = Math.random() * 4; break;
+            case '右下区': x = 6 + Math.random() * 4; y = Math.random() * 4; break;
+            case '左上区': x = Math.random() * 4; y = 6 + Math.random() * 4; break;
+            case '右上区': x = 6 + Math.random() * 4; y = 6 + Math.random() * 4; break;
+            default: x = 3 + Math.random() * 4; y = 3 + Math.random() * 4; break;
+        }
+        x = parseFloat(x.toFixed(1));
+        y = parseFloat(y.toFixed(1));
+        let size = '';
+        if (type === '裂纹') size = `${(8 + Math.random() * 20).toFixed(0)}x${(0.2 + Math.random() * 0.6).toFixed(1)}mm`;
+        else if (type === '划痕') size = `${(15 + Math.random() * 30).toFixed(0)}x${(0.1 + Math.random() * 0.3).toFixed(1)}mm`;
+        else if (type === '凹陷') size = `直径${(3 + Math.random() * 8).toFixed(0)}mm`;
+        else size = `${(5 + Math.random() * 15).toFixed(0)}x${(4 + Math.random() * 12).toFixed(0)}mm`;
+        
+        const dateObj = randomDate(startDate, endDate);
+        const dateStr = formatDate(dateObj);
+        const history = generateHistory(type, dateStr);
+        const imgExt = (type === '裂纹' ? 'crack' : (type === '划痕' ? 'scratch' : (type === '凹陷' ? 'dent' : 'corrosion'))) + (Math.floor(Math.random()*3)+1) + '.jpg';
+        randomDamages.push({
+            id: `D${String(idCounter++).padStart(3,'0')}`,
+            batch: batch,
+            type: type,
+            position: region,
+            locationCm: {x, y},
+            size: size,
+            date: dateStr,
+            img: `images/${imgExt}`,
+            history: history
+        });
+    }
+    // 合并所有数据：前10条手动 + 后190条随机
+    const damagesDB = [...manualDamages, ...randomDamages];
+    damagesDB.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    // 生成60条任务数据（全部已完成）
+    const tasksDB = [];
+    for (let i = 1; i <= 60; i++) {
+        const batch = batches[Math.floor(Math.random() * batches.length)];
+        const area = regions[Math.floor(Math.random() * regions.length)];
+        const dateObj = randomDate(startDate, endDate);
+        tasksDB.push({
+            id: `T${String(i).padStart(3,'0')}`,
+            batch: batch,
+            area: area,
+            date: formatDate(dateObj),
+            status: '已完成'
+        });
+    }
+    tasksDB.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    let currentDamage = null;
+    let scene, camera, renderer;
+    let damageMarkers = {};
+    let miniChart = null;
+    let curveChart, heatChart, probabilityChart;
+
+    // 三维铁皮模型（保持不变）
+    function initThree() {
+        const container = document.getElementById('threeCanvas');
+        if (!container) return;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010a18);
+        scene.fog = new THREE.FogExp2(0x010a18, 0.008);
+        camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 1000);
+        camera.position.set(8, 8, 12);
+        camera.lookAt(5, 5, 0);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.shadowMap.enabled = true;
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+        
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        const fillLight = new THREE.PointLight(0x4466cc, 0.4);
+        fillLight.position.set(-2, 3, 4);
+        scene.add(fillLight);
+        
+        const planeMat = new THREE.MeshStandardMaterial({ color: 0xbbaa99, metalness: 0.7, roughness: 0.4, transparent: true, opacity: 0.85 });
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), planeMat);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.set(5, 0, 5);
+        plane.receiveShadow = true;
+        scene.add(plane);
+        
+        const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(10, 0.05, 10));
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0x88aaff });
+        const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+        wireframe.position.set(5, 0.03, 5);
+        scene.add(wireframe);
+        
+        const gridHelper = new THREE.GridHelper(10, 20, 0x88aaff, 0x446688);
+        gridHelper.position.set(5, 0.02, 5);
+        scene.add(gridHelper);
+        
+        const originSphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshStandardMaterial({ color: 0xff6666 }));
+        originSphere.position.set(0, 0.05, 0);
+        scene.add(originSphere);
+        
+        damagesDB.forEach(dam => {
+            const marker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshStandardMaterial({ color: 0xff3366, emissive: 0x441122 }));
+            marker.userData = { damageId: dam.id };
+            marker.position.set(dam.locationCm.x, 0.12, dam.locationCm.y);
+            scene.add(marker);
+            damageMarkers[dam.id] = marker;
+        });
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            const w = container.clientWidth, h = container.clientHeight;
+            camera.aspect = w/h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+    }
+
+    function highlightDamageMarker(damageId) {
+        for(let id in damageMarkers) {
+            const mat = damageMarkers[id].material;
+            mat.color.setHex(id === damageId ? 0xffaa44 : 0xff3366);
+            mat.emissive.setHex(id === damageId ? 0x442200 : 0x221111);
+            if(id === damageId && camera) {
+                const pos = damageMarkers[id].position;
+                camera.position.set(pos.x + 1.5, pos.y + 1.8, pos.z + 1.5);
+                camera.lookAt(pos);
+            }
+        }
+    }
+
+    let currentFilteredDamages = [...damagesDB];
+    
+    function renderDamageList(damages) {
+        const tbody = document.getElementById('damageTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        damages.forEach(d => {
+            const row = tbody.insertRow();
+            row.classList.add('damage-item');
+            row.insertCell(0).innerText = d.id;
+            row.insertCell(1).innerText = d.type;
+            row.insertCell(2).innerText = d.position;
+            row.insertCell(3).innerText = d.size;
+            row.insertCell(4).innerText = d.date;
+            // 操作列留空（不添加编辑按钮，因为前10条已在代码中预留）
+            const actionCell = row.insertCell(5);
+            actionCell.textContent = '—';
+            row.onclick = () => showDamageDetail(d);
+        });
+        if(damages.length) showDamageDetail(damages[0]);
+    }
+
+    function showDamageDetail(damage) {
+        currentDamage = damage;
+        document.getElementById('damageCoord').innerText = `(${damage.locationCm.x}, ${damage.locationCm.y}) cm`;
+        document.getElementById('damageSize').innerText = damage.size;
+        const imgElement = document.getElementById('damageImg');
+        // 如果图片路径包含“请填写图片路径”则提示用户
+        if (damage.img && damage.img.includes('请填写图片路径')) {
+            imgElement.src = 'https://placehold.co/120x90/2c3e4e/cyan?text=请填写图片路径';
+            imgElement.alt = '请填写图片路径';
+        } else if (damage.img) {
+            imgElement.src = damage.img;
+        } else {
+            imgElement.src = 'https://placehold.co/120x90/2c3e4e/cyan?text=无图像';
+        }
+        highlightDamageMarker(damage.id);
+        const histData = damage.history;
+        const dates = histData.map(h => h[0].slice(5));
+        const values = histData.map(h => h[1]);
+        if(miniChart) miniChart.dispose();
+        const chartDom = document.getElementById('trendChartMini');
+        if(chartDom) {
+            miniChart = echarts.init(chartDom);
+            miniChart.setOption({
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: dates, axisLabel: { color: '#aaccff', rotate: 30 } },
+                yAxis: { type: 'value', name: '尺寸(mm)', nameTextStyle: { color: '#aaccff' } },
+                series: [{ type: 'line', data: values, smooth: true, lineStyle: { color: '#00e0ff', width: 3 }, areaStyle: { opacity: 0.2, color: '#0088ff' }, symbol: 'circle', symbolSize: 8 }],
+                grid: { containLabel: true, backgroundColor: 'transparent' }
+            });
+        }
+    }
+
+    function filterDamages() {
+        let batch = document.getElementById('batchQuery').value.trim();
+        let type = document.getElementById('damageTypeFilter').value;
+        let pos = document.getElementById('positionFilter').value;
+        let start = document.getElementById('startDate').value;
+        let end = document.getElementById('endDate').value;
+        let filtered = damagesDB.filter(d => (batch === '' || d.batch === batch) &&
+            (type === '' || d.type === type) && (pos === '' || d.position === pos));
+        if(start) filtered = filtered.filter(d => d.date >= start);
+        if(end) filtered = filtered.filter(d => d.date <= end);
+        currentFilteredDamages = filtered;
+        renderDamageList(filtered);
+    }
+
+    function exportCSV() {
+        let rows = [["损伤ID","实验批次","类型","区域","尺寸","发现日期","坐标X(cm)","坐标Y(cm)","图片路径"]];
+        currentFilteredDamages.forEach(d => rows.push([d.id, d.batch, d.type, d.position, d.size, d.date, d.locationCm.x, d.locationCm.y, d.img]));
+        let csv = rows.map(row => row.join(",")).join("\n");
+        const blob = new Blob(["\uFEFF" + csv], {type: "text/csv;charset=utf-8;"});
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "iron_sheet_damage_export.csv";
+        link.click();
+    }
+
+    function renderTasks(filter = {date:'', batch:'', area:''}) {
+        let filtered = tasksDB.filter(t => 
+            (filter.date === '' || t.date === filter.date) &&
+            (filter.batch === '' || t.batch.includes(filter.batch)) &&
+            (filter.area === '' || t.area === filter.area)
+        );
+        const tbody = document.getElementById('taskTableBody');
+        if(!tbody) return;
+        tbody.innerHTML = '';
+        filtered.forEach(t => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = t.id;
+            row.insertCell(1).innerText = t.batch;
+            row.insertCell(2).innerText = t.area;
+            row.insertCell(3).innerText = t.date;
+            row.insertCell(4).innerText = t.status;
+        });
+    }
+
+    function updateTrendCurve() {
+        const batch = document.getElementById('trendBatchSelect').value;
+        const damageId = document.getElementById('trendDamageSelect').value;
+        const damage = damagesDB.find(d => d.id === damageId && d.batch === batch);
+        if(!damage || !curveChart) return;
+        const hist = damage.history;
+        const dates = hist.map(h => h[0]);
+        const values = hist.map(h => h[1]);
+        curveChart.setOption({
+            title: { text: `${damage.id} (${damage.type}) 损伤发展曲线`, textStyle: { color: '#ccddff' } },
+            tooltip: { trigger: 'axis' },
+            xAxis: { type: 'category', data: dates, name: '检测日期', axisLabel: { rotate: 30 } },
+            yAxis: { type: 'value', name: '损伤尺寸(mm)' },
+            series: [{ type: 'line', data: values, smooth: true, lineStyle: { color: '#ffaa44', width: 3 }, areaStyle: { opacity: 0.2 } }]
+        });
+    }
+
+    function loadDamageSelectByBatch(batch) {
+        const select = document.getElementById('trendDamageSelect');
+        if(!select) return;
+        const opts = damagesDB.filter(d => d.batch === batch);
+        select.innerHTML = opts.map(d => `<option value="${d.id}">${d.id} (${d.type} - ${d.position})</option>`);
+        if(opts.length) updateTrendCurve();
+    }
+
+    function initHeatmap() {
+        if(!heatChart) return;
+        const regionFreq = { '左下区':0, '右下区':0, '左上区':0, '右上区':0, '中心区':0 };
+        damagesDB.forEach(d => {
+            if(regionFreq.hasOwnProperty(d.position)) regionFreq[d.position]++;
+            else regionFreq[d.position] = 1;
+        });
+        const regionsArr = Object.keys(regionFreq);
+        const freqs = Object.values(regionFreq);
+        heatChart.setOption({
+            title: { text: '铁皮实验损伤区域频次热力图', textStyle: { color: '#eef' } },
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            xAxis: { type: 'category', data: regionsArr, axisLabel: { rotate: 30, color: '#ccf' } },
+            yAxis: { type: 'value', name: '损伤次数' },
+            series: [{ type: 'bar', data: freqs, itemStyle: { borderRadius: [6,6,0,0], color: { type: 'linear', x:0, y:0, x2:0, y2:1, colorStops: [{ offset:0, color:'#ff884d'},{offset:1,color:'#d43f1a'}] }, shadowBlur: 8 } }]
+        });
+    }
+
+    function initProbabilityAnalysis() {
+        if(!probabilityChart) return;
+        const regionFreq = { '左下区':0, '右下区':0, '左上区':0, '右上区':0, '中心区':0 };
+        damagesDB.forEach(d => {
+            if(regionFreq.hasOwnProperty(d.position)) regionFreq[d.position]++;
+        });
+        const total = Object.values(regionFreq).reduce((a,b)=>a+b,0);
+        const predictedProb = {};
+        for (let region in regionFreq) {
+            let baseProb = regionFreq[region] / total;
+            let factor = 1.0;
+            if (region === '中心区') factor = 1.15;
+            else if (region === '左下区') factor = 1.05;
+            else if (region === '右上区') factor = 1.1;
+            else factor = 0.95;
+            let prob = Math.min(baseProb * factor, 0.45);
+            predictedProb[region] = parseFloat((prob * 100).toFixed(1));
+        }
+        const regionsArr = Object.keys(regionFreq);
+        const currentCounts = regionsArr.map(r => regionFreq[r]);
+        const predictedPercent = regionsArr.map(r => predictedProb[r]);
+        
+        probabilityChart.setOption({
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            legend: { data: ['实际发生次数 (3月)', '预测发生概率 (4月) %'], textStyle: { color: '#eef' } },
+            xAxis: { type: 'category', data: regionsArr, axisLabel: { rotate: 30, color: '#ccf' } },
+            yAxis: [{ type: 'value', name: '损伤次数', position: 'left' }, { type: 'value', name: '概率 (%)', position: 'right', min: 0, max: 50 }],
+            series: [
+                { name: '实际发生次数 (3月)', type: 'bar', data: currentCounts, itemStyle: { color: '#3b82f6', borderRadius: [6,6,0,0] } },
+                { name: '预测发生概率 (4月) %', type: 'line', yAxisIndex: 1, data: predictedPercent, smooth: false, lineStyle: { color: '#f97316', width: 3 }, symbol: 'circle', symbolSize: 8, itemStyle: { color: '#f97316' } }
+            ],
+            grid: { containLabel: true, backgroundColor: 'transparent' }
+        });
+    }
+
+    function switchPage(pageId) {
+        document.querySelectorAll('.page-panel').forEach(panel => panel.classList.remove('active-panel'));
+        document.getElementById(`${pageId}Panel`).classList.add('active-panel');
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`.nav-btn[data-page="${pageId}"]`).classList.add('active');
+        if(pageId === 'trendAnalysis') {
+            if(curveChart) curveChart.resize(); if(heatChart) heatChart.resize(); if(probabilityChart) probabilityChart.resize();
+            loadDamageSelectByBatch(document.getElementById('trendBatchSelect').value);
+        }
+        if(pageId === 'damageQuery') filterDamages();
+    }
+
+    window.onload = () => {
+        initThree();
+        renderDamageList(damagesDB);
+        filterDamages();
+        renderTasks({});
+        curveChart = echarts.init(document.getElementById('damageCurveChart'));
+        heatChart = echarts.init(document.getElementById('heatmapChart'));
+        probabilityChart = echarts.init(document.getElementById('probabilityChart'));
+        initHeatmap();
+        initProbabilityAnalysis();
+        document.getElementById('searchDamageBtn')?.addEventListener('click', filterDamages);
+        document.getElementById('exportDamageBtn')?.addEventListener('click', exportCSV);
+        document.getElementById('filterTaskBtn')?.addEventListener('click', () => {
+            renderTasks({
+                date: document.getElementById('taskDateFilter').value,
+                batch: document.getElementById('taskBatchFilter').value,
+                area: document.getElementById('taskAreaFilter').value
+            });
+        });
+        document.getElementById('refreshTrendBtn')?.addEventListener('click', updateTrendCurve);
+        document.getElementById('trendBatchSelect')?.addEventListener('change', (e) => loadDamageSelectByBatch(e.target.value));
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchPage(btn.dataset.page));
+        });
+        loadDamageSelectByBatch('BATCH-001');
+    };
+</script>
+</body>
+</html>
