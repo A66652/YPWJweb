@@ -100,6 +100,13 @@
             cursor: pointer;
         }
         .btn-primary:hover { transform: scale(1.02); box-shadow: 0 0 12px #00a6ff; }
+        .btn-add {
+            background: #10b981;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-add:hover { background: #059669; transform: scale(1.02); }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(100, 150, 200, 0.2); }
         th { color: #9bc0ff; font-weight: 500; }
@@ -124,6 +131,62 @@
         @media (max-width: 900px) { .flex-row { flex-direction: column; } .nav-bar { flex-direction: column; gap: 12px; } }
     </style>
 </head>
+<div id="photo-gallery" style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px;">
+    <p>加载图片中...</p>
+</div>
+
+<script>
+// 替换成你的COS存储桶信息
+const BUCKET_NAME = "damage-photos-你的APPID";  // 你的存储桶名称
+const REGION = "ap-guangzhou";  // 你的地域
+
+// 获取图片列表的API地址（COS没有直接的列表API，我们用另一种方式）
+// 方案：让OpenMV上传时，同时把文件名记录到一个JSON文件里
+// 或者直接按时间规律生成文件名来访问
+
+// 简化方案：在COS里放一个 photos.json 文件来记录所有照片
+// 下面演示如何读取这个文件
+
+async function loadPhotos() {
+    try {
+        // 读取照片列表（这个文件需要由OpenMV上传时更新）
+        const response = await fetch(`https://${BUCKET_NAME}.cos.${REGION}.myqcloud.com/photos.json?t=${Date.now()}`);
+        if (response.ok) {
+            const data = await response.json();
+            const gallery = document.getElementById('photo-gallery');
+            
+            if (data.photos && data.photos.length > 0) {
+                let html = '';
+                for (const photo of data.photos.reverse()) {  // 最新的在最前面
+                    html += `
+                        <div style="border: 1px solid #ccc; border-radius: 8px; padding: 10px; width: 300px;">
+                            <img src="https://${BUCKET_NAME}.cos.${REGION}.myqcloud.com/${photo.filename}" 
+                                 style="width: 100%; border-radius: 4px;" 
+                                 alt="蒙皮检测照片">
+                            <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                                📅 时间: ${photo.time}
+                            </p>
+                        </div>
+                    `;
+                }
+                gallery.innerHTML = html;
+            } else {
+                gallery.innerHTML = '<p>暂无照片，等待OpenMV上传...</p>';
+            }
+        } else {
+            document.getElementById('photo-gallery').innerHTML = '<p>加载照片列表失败，请检查配置</p>';
+        }
+    } catch (error) {
+        console.error('加载失败:', error);
+        document.getElementById('photo-gallery').innerHTML = '<p>连接COS失败</p>';
+    }
+}
+
+// 页面加载时立即加载一次
+loadPhotos();
+// 每10秒自动刷新（新照片会自动显示）
+setInterval(loadPhotos, 10000);
+</script>
 <body>
 <div class="nav-bar">
     <div class="logo-main"><i class="fas fa-plane"></i> 翼攀微鉴 · 智慧航空运维</div>
@@ -146,6 +209,7 @@
                 <div style="flex:1"><label>结束日期</label><input type="date" id="endDate"></div>
                 <div><button id="searchDamageBtn" class="btn-primary" style="padding: 0.6rem 1.8rem;"><i class="fas fa-filter"></i> 检索</button></div>
                 <div><button id="exportDamageBtn" class="btn-primary" style="background:#2c5a7a;"><i class="fas fa-download"></i> 导出CSV</button></div>
+                <div><button id="addDamageBtn" class="btn-primary btn-add" style="background:#10b981;"><i class="fas fa-plus-circle"></i> 模拟新检测损伤</button></div>
             </div>
         </div>
         <div class="flex-row" style="margin-top: 1.5rem;">
@@ -217,13 +281,10 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // ======================== 铁皮损伤数据 ========================
-    // 前10条数据：请在这里填写您自己的图片路径
-    // 注意：图片文件请放在 images 文件夹下，路径示例：'images/my_crack.jpg'
-    // 也可以使用网络图片，例如 'https://example.com/photo.jpg'
+    // ======================== 原始数据生成函数（生成初始200条） ========================
     const manualDamages = [
-        { id: 'D001', batch: 'BATCH-001', type: '凹陷', position: '左下区', locationCm: {x: 2.5, y: 1.8}, size: '15x0.3mm', date: '2026-03-01', img: 'images/凹痕.jpg', history: [['2026-03-01', 0.3], ['2026-03-05', 0.5], ['2026-03-10', 0.8]] },
-        { id: 'D002', batch: 'BATCH-001', type: '划痕', position: '中心区', locationCm: {x: 5.0, y: 5.2}, size: '22x0.2mm', date: '2026-03-01', img: 'images/1.jpg', history: [['2026-03-01', 0.2], ['2026-03-06', 0.25], ['2026-03-11', 0.3]] },
+        { id: 'D001', batch: 'BATCH-001', type: '划痕', position: '左下区', locationCm: {x: 2.5, y: 1.8}, size: '15x0.3mm', date: '2026-03-01', img: 'images/.jpg', history: [['2026-03-01', 0.3], ['2026-03-05', 0.5], ['2026-03-10', 0.8]] },
+        { id: 'D002', batch: 'BATCH-001', type: '凹陷', position: '中心区', locationCm: {x: 5.0, y: 5.2}, size: '22x0.2mm', date: '2026-03-01', img: 'images/.jpg', history: [['2026-03-01', 0.2], ['2026-03-06', 0.25], ['2026-03-11', 0.3]] },
         { id: 'D003', batch: 'BATCH-001', type: '凹陷', position: '右上区', locationCm: {x: 8.2, y: 7.5}, size: '直径6mm', date: '2026-03-02', img: 'images/请填写图片路径3.jpg', history: [['2026-03-02', 0.8], ['2026-03-07', 1.0], ['2026-03-12', 1.2]] },
         { id: 'D004', batch: 'BATCH-002', type: '锈蚀', position: '右下区', locationCm: {x: 9.0, y: 1.5}, size: '10x8mm', date: '2026-03-03', img: 'images/请填写图片路径4.jpg', history: [['2026-03-03', 2.0], ['2026-03-08', 2.5], ['2026-03-13', 3.1]] },
         { id: 'D005', batch: 'BATCH-002', type: '裂纹', position: '左上区', locationCm: {x: 1.2, y: 8.8}, size: '8x0.2mm', date: '2026-03-04', img: 'images/请填写图片路径5.jpg', history: [['2026-03-04', 0.2], ['2026-03-09', 0.35], ['2026-03-14', 0.5]] },
@@ -234,7 +295,6 @@
         { id: 'D010', batch: 'BATCH-005', type: '划痕', position: '左上区', locationCm: {x: 2.8, y: 7.2}, size: '25x0.2mm', date: '2026-03-09', img: 'images/请填写图片路径10.jpg', history: [['2026-03-09', 0.2], ['2026-03-14', 0.3], ['2026-03-19', 0.4]] }
     ];
 
-    // 生成剩余的190条随机数据（日期在2026年3月内）
     const damageTypes = ['裂纹', '划痕', '凹陷', '锈蚀'];
     const regions = ['左下区', '右下区', '左上区', '右上区', '中心区'];
     const batches = ['BATCH-001', 'BATCH-002', 'BATCH-003', 'BATCH-004', 'BATCH-005'];
@@ -248,8 +308,7 @@
         return date.toISOString().slice(0,10);
     }
     function generateHistory(damageType, firstDate) {
-        let baseValues = [];
-        let dates = [];
+        let baseValues = [], dates = [];
         let currentDate = new Date(firstDate);
         let stepDays = [3, 5, 7, 10];
         let value = 0;
@@ -273,7 +332,7 @@
     }
 
     const randomDamages = [];
-    let idCounter = 11; // 从 D011 开始
+    let idCounter = 11;
     for (let i = 0; i < 190; i++) {
         const batch = batches[Math.floor(Math.random() * batches.length)];
         const type = damageTypes[Math.floor(Math.random() * damageTypes.length)];
@@ -310,99 +369,99 @@
             history: history
         });
     }
-    // 合并所有数据：前10条手动 + 后190条随机
-    const damagesDB = [...manualDamages, ...randomDamages];
-    damagesDB.sort((a,b) => new Date(a.date) - new Date(b.date));
 
-    // 生成60条任务数据（全部已完成）
-    const tasksDB = [];
-    for (let i = 1; i <= 60; i++) {
-        const batch = batches[Math.floor(Math.random() * batches.length)];
-        const area = regions[Math.floor(Math.random() * regions.length)];
-        const dateObj = randomDate(startDate, endDate);
-        tasksDB.push({
-            id: `T${String(i).padStart(3,'0')}`,
-            batch: batch,
-            area: area,
-            date: formatDate(dateObj),
-            status: '已完成'
-        });
-    }
-    tasksDB.sort((a,b) => new Date(a.date) - new Date(b.date));
+    const initialDamages = [...manualDamages, ...randomDamages];
+    initialDamages.sort((a,b) => new Date(a.date) - new Date(b.date));
 
+    // ======================== 数据服务层（可替换为后端API） ========================
+    const DataService = {
+        // 获取所有损伤数据（异步，模拟真实API）
+        async getAll() {
+            const stored = localStorage.getItem('wingpan_damages');
+            if (stored) {
+                return JSON.parse(stored);
+            } else {
+                // 首次使用，保存初始数据
+                localStorage.setItem('wingpan_damages', JSON.stringify(initialDamages));
+                return [...initialDamages];
+            }
+        },
+        // 添加新损伤
+        async addDamage(newDamage) {
+            const all = await this.getAll();
+            all.push(newDamage);
+            localStorage.setItem('wingpan_damages', JSON.stringify(all));
+            return newDamage;
+        },
+        // 更新损伤（本例暂不需要，但保留接口）
+        async updateDamage(id, updatedFields) {
+            const all = await this.getAll();
+            const index = all.findIndex(d => d.id === id);
+            if (index !== -1) {
+                all[index] = { ...all[index], ...updatedFields };
+                localStorage.setItem('wingpan_damages', JSON.stringify(all));
+                return all[index];
+            }
+            return null;
+        },
+        // 删除损伤（暂未使用，但保留）
+        async deleteDamage(id) {
+            let all = await this.getAll();
+            all = all.filter(d => d.id !== id);
+            localStorage.setItem('wingpan_damages', JSON.stringify(all));
+        }
+    };
+
+    // ======================== 全局变量 ========================
+    let damagesDB = [];        // 内存中的全量数据
     let currentDamage = null;
     let scene, camera, renderer;
     let damageMarkers = {};
     let miniChart = null;
     let curveChart, heatChart, probabilityChart;
+    let currentFilteredDamages = [];
 
-    // 三维铁皮模型（保持不变）
-    function initThree() {
-        const container = document.getElementById('threeCanvas');
-        if (!container) return;
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x010a18);
-        scene.fog = new THREE.FogExp2(0x010a18, 0.008);
-        camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 1000);
-        camera.position.set(8, 8, 12);
-        camera.lookAt(5, 5, 0);
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(width, height);
-        renderer.shadowMap.enabled = true;
-        container.innerHTML = '';
-        container.appendChild(renderer.domElement);
-        
-        const ambientLight = new THREE.AmbientLight(0x404060);
-        scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(5, 10, 7);
-        scene.add(dirLight);
-        const fillLight = new THREE.PointLight(0x4466cc, 0.4);
-        fillLight.position.set(-2, 3, 4);
-        scene.add(fillLight);
-        
-        const planeMat = new THREE.MeshStandardMaterial({ color: 0xbbaa99, metalness: 0.7, roughness: 0.4, transparent: true, opacity: 0.85 });
-        const plane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), planeMat);
-        plane.rotation.x = -Math.PI / 2;
-        plane.position.set(5, 0, 5);
-        plane.receiveShadow = true;
-        scene.add(plane);
-        
-        const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(10, 0.05, 10));
-        const edgesMat = new THREE.LineBasicMaterial({ color: 0x88aaff });
-        const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
-        wireframe.position.set(5, 0.03, 5);
-        scene.add(wireframe);
-        
-        const gridHelper = new THREE.GridHelper(10, 20, 0x88aaff, 0x446688);
-        gridHelper.position.set(5, 0.02, 5);
-        scene.add(gridHelper);
-        
-        const originSphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshStandardMaterial({ color: 0xff6666 }));
-        originSphere.position.set(0, 0.05, 0);
-        scene.add(originSphere);
-        
+    // ======================== 初始化加载数据 ========================
+    async function loadData() {
+        damagesDB = await DataService.getAll();
+    }
+
+    // 保存数据并刷新UI（增加数据后调用）
+    async function addNewDamageToDB(newDamage) {
+        await DataService.addDamage(newDamage);
+        await loadData();          // 重新加载全量数据
+        refreshAllUI();            // 刷新所有界面组件
+    }
+
+    // 刷新整个UI（表格、三维小球、图表、趋势下拉框）
+    function refreshAllUI() {
+        filterDamages();                // 重新筛选并渲染表格
+        rebuildAllMarkers();           // 重建三维小球
+        refreshHeatmap();              // 热力图
+        refreshProbability();          // 概率预测
+        // 刷新趋势分析页面下拉框
+        const currentBatch = document.getElementById('trendBatchSelect').value;
+        loadDamageSelectByBatch(currentBatch);
+        // 如果当前详情显示的损伤还存在，重新显示；否则显示第一条
+        if (currentDamage && damagesDB.find(d => d.id === currentDamage.id)) {
+            showDamageDetail(currentDamage);
+        } else if (damagesDB.length > 0) {
+            showDamageDetail(damagesDB[0]);
+        }
+    }
+
+    // ======================== Three.js 相关（与之前相同，但使用全局 damagesDB） ========================
+    function rebuildAllMarkers() {
+        for (let id in damageMarkers) {
+            if (damageMarkers[id]) scene.remove(damageMarkers[id]);
+        }
+        damageMarkers = {};
         damagesDB.forEach(dam => {
             const marker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshStandardMaterial({ color: 0xff3366, emissive: 0x441122 }));
             marker.userData = { damageId: dam.id };
             marker.position.set(dam.locationCm.x, 0.12, dam.locationCm.y);
             scene.add(marker);
             damageMarkers[dam.id] = marker;
-        });
-        
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
-        }
-        animate();
-        
-        window.addEventListener('resize', () => {
-            const w = container.clientWidth, h = container.clientHeight;
-            camera.aspect = w/h;
-            camera.updateProjectionMatrix();
-            renderer.setSize(w, h);
         });
     }
 
@@ -419,8 +478,6 @@
         }
     }
 
-    let currentFilteredDamages = [...damagesDB];
-    
     function renderDamageList(damages) {
         const tbody = document.getElementById('damageTableBody');
         if (!tbody) return;
@@ -433,7 +490,6 @@
             row.insertCell(2).innerText = d.position;
             row.insertCell(3).innerText = d.size;
             row.insertCell(4).innerText = d.date;
-            // 操作列留空（不添加编辑按钮，因为前10条已在代码中预留）
             const actionCell = row.insertCell(5);
             actionCell.textContent = '—';
             row.onclick = () => showDamageDetail(d);
@@ -446,7 +502,6 @@
         document.getElementById('damageCoord').innerText = `(${damage.locationCm.x}, ${damage.locationCm.y}) cm`;
         document.getElementById('damageSize').innerText = damage.size;
         const imgElement = document.getElementById('damageImg');
-        // 如果图片路径包含“请填写图片路径”则提示用户
         if (damage.img && damage.img.includes('请填写图片路径')) {
             imgElement.src = 'https://placehold.co/120x90/2c3e4e/cyan?text=请填写图片路径';
             imgElement.alt = '请填写图片路径';
@@ -498,6 +553,22 @@
         link.click();
     }
 
+    // 任务数据（固定，无变化）
+    const tasksDB = [];
+    for (let i = 1; i <= 60; i++) {
+        const batch = batches[Math.floor(Math.random() * batches.length)];
+        const area = regions[Math.floor(Math.random() * regions.length)];
+        const dateObj = randomDate(startDate, endDate);
+        tasksDB.push({
+            id: `T${String(i).padStart(3,'0')}`,
+            batch: batch,
+            area: area,
+            date: formatDate(dateObj),
+            status: '已完成'
+        });
+    }
+    tasksDB.sort((a,b) => new Date(a.date) - new Date(b.date));
+
     function renderTasks(filter = {date:'', batch:'', area:''}) {
         let filtered = tasksDB.filter(t => 
             (filter.date === '' || t.date === filter.date) &&
@@ -542,7 +613,7 @@
         if(opts.length) updateTrendCurve();
     }
 
-    function initHeatmap() {
+    function refreshHeatmap() {
         if(!heatChart) return;
         const regionFreq = { '左下区':0, '右下区':0, '左上区':0, '右上区':0, '中心区':0 };
         damagesDB.forEach(d => {
@@ -560,7 +631,7 @@
         });
     }
 
-    function initProbabilityAnalysis() {
+    function refreshProbability() {
         if(!probabilityChart) return;
         const regionFreq = { '左下区':0, '右下区':0, '左上区':0, '右上区':0, '中心区':0 };
         damagesDB.forEach(d => {
@@ -584,15 +655,118 @@
         
         probabilityChart.setOption({
             tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-            legend: { data: ['实际发生次数 (3月)', '预测发生概率 (4月) %'], textStyle: { color: '#eef' } },
+            legend: { data: ['实际发生次数 (全部数据)', '预测发生概率 (下月) %'], textStyle: { color: '#eef' } },
             xAxis: { type: 'category', data: regionsArr, axisLabel: { rotate: 30, color: '#ccf' } },
             yAxis: [{ type: 'value', name: '损伤次数', position: 'left' }, { type: 'value', name: '概率 (%)', position: 'right', min: 0, max: 50 }],
             series: [
-                { name: '实际发生次数 (3月)', type: 'bar', data: currentCounts, itemStyle: { color: '#3b82f6', borderRadius: [6,6,0,0] } },
-                { name: '预测发生概率 (4月) %', type: 'line', yAxisIndex: 1, data: predictedPercent, smooth: false, lineStyle: { color: '#f97316', width: 3 }, symbol: 'circle', symbolSize: 8, itemStyle: { color: '#f97316' } }
+                { name: '实际发生次数 (全部数据)', type: 'bar', data: currentCounts, itemStyle: { color: '#3b82f6', borderRadius: [6,6,0,0] } },
+                { name: '预测发生概率 (下月) %', type: 'line', yAxisIndex: 1, data: predictedPercent, smooth: false, lineStyle: { color: '#f97316', width: 3 }, symbol: 'circle', symbolSize: 8, itemStyle: { color: '#f97316' } }
             ],
             grid: { containLabel: true, backgroundColor: 'transparent' }
         });
+    }
+
+    function initThree() {
+        const container = document.getElementById('threeCanvas');
+        if (!container) return;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010a18);
+        scene.fog = new THREE.FogExp2(0x010a18, 0.008);
+        camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 1000);
+        camera.position.set(8, 8, 12);
+        camera.lookAt(5, 5, 0);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.shadowMap.enabled = true;
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+        
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        const fillLight = new THREE.PointLight(0x4466cc, 0.4);
+        fillLight.position.set(-2, 3, 4);
+        scene.add(fillLight);
+        
+        const planeMat = new THREE.MeshStandardMaterial({ color: 0xbbaa99, metalness: 0.7, roughness: 0.4, transparent: true, opacity: 0.85 });
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), planeMat);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.set(5, 0, 5);
+        plane.receiveShadow = true;
+        scene.add(plane);
+        
+        const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(10, 0.05, 10));
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0x88aaff });
+        const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+        wireframe.position.set(5, 0.03, 5);
+        scene.add(wireframe);
+        
+        const gridHelper = new THREE.GridHelper(10, 20, 0x88aaff, 0x446688);
+        gridHelper.position.set(5, 0.02, 5);
+        scene.add(gridHelper);
+        
+        const originSphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshStandardMaterial({ color: 0xff6666 }));
+        originSphere.position.set(0, 0.05, 0);
+        scene.add(originSphere);
+        
+        rebuildAllMarkers();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            const w = container.clientWidth, h = container.clientHeight;
+            camera.aspect = w/h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+    }
+
+    // 模拟新检测损伤（通过数据服务添加）
+    function simulateNewDamage() {
+        const type = prompt('请输入损伤类型（裂纹/划痕/凹陷/锈蚀）', '裂纹');
+        if (!type) return;
+        const region = prompt('请输入区域（左下区/右下区/左上区/右上区/中心区）', '中心区');
+        if (!region) return;
+        let x = parseFloat(prompt('请输入X坐标 (0-10 cm)', '5.0'));
+        let y = parseFloat(prompt('请输入Y坐标 (0-10 cm)', '5.0'));
+        if (isNaN(x)) x = 5.0;
+        if (isNaN(y)) y = 5.0;
+        const size = prompt('请输入尺寸（如 10x0.5mm 或 直径8mm）', '5x0.2mm');
+        if (!size) return;
+        
+        const maxId = damagesDB.reduce((max, d) => {
+            const num = parseInt(d.id.slice(1));
+            return num > max ? num : max;
+        }, 0);
+        const newId = `D${String(maxId + 1).padStart(3, '0')}`;
+        const today = new Date().toISOString().slice(0,10);
+        const initValue = parseFloat(size.match(/\d+(?:\.\d+)?/)?.[0] || '0.2');
+        const history = [
+            [today, initValue],
+            [today, (initValue * 1.2).toFixed(2)],
+            [today, (initValue * 1.5).toFixed(2)]
+        ];
+        const newDamage = {
+            id: newId,
+            batch: 'SIMULATED',
+            type: type,
+            position: region,
+            locationCm: {x, y},
+            size: size,
+            date: today,
+            img: 'https://placehold.co/120x90/2c3e4e/cyan?text=新损伤',
+            history: history
+        };
+        addNewDamageToDB(newDamage);
+        alert(`已添加新损伤 ${newId}，数据已保存到 localStorage，刷新页面不会丢失。`);
     }
 
     function switchPage(pageId) {
@@ -607,16 +781,19 @@
         if(pageId === 'damageQuery') filterDamages();
     }
 
-    window.onload = () => {
+    // ======================== 页面启动 ========================
+    window.onload = async () => {
+        await loadData();               // 从数据服务加载
         initThree();
-        renderDamageList(damagesDB);
-        filterDamages();
+        filterDamages();               // 初始渲染表格
         renderTasks({});
         curveChart = echarts.init(document.getElementById('damageCurveChart'));
         heatChart = echarts.init(document.getElementById('heatmapChart'));
         probabilityChart = echarts.init(document.getElementById('probabilityChart'));
-        initHeatmap();
-        initProbabilityAnalysis();
+        refreshHeatmap();
+        refreshProbability();
+        loadDamageSelectByBatch('BATCH-001');
+        
         document.getElementById('searchDamageBtn')?.addEventListener('click', filterDamages);
         document.getElementById('exportDamageBtn')?.addEventListener('click', exportCSV);
         document.getElementById('filterTaskBtn')?.addEventListener('click', () => {
@@ -628,10 +805,11 @@
         });
         document.getElementById('refreshTrendBtn')?.addEventListener('click', updateTrendCurve);
         document.getElementById('trendBatchSelect')?.addEventListener('change', (e) => loadDamageSelectByBatch(e.target.value));
+        document.getElementById('addDamageBtn')?.addEventListener('click', simulateNewDamage);
+        
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.addEventListener('click', () => switchPage(btn.dataset.page));
         });
-        loadDamageSelectByBatch('BATCH-001');
     };
 </script>
 </body>
